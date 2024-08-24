@@ -63,7 +63,7 @@ object MessageSerializer {
   fun deserializeResponseMessage(
     jsonString: String,
     responseCallbacks: Map<String, Callback<*>>,
-    messageHandlers: Map<String, Handler<*, *>>,
+    messageHandlers: Map<String, MessageHandler<*, *>>,
   ): ResponseMessage {
     val json = JSONObject(jsonString)
     val responseId = json.optString(RESPONSE_ID)

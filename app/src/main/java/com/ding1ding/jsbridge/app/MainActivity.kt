@@ -9,7 +9,7 @@ import android.webkit.WebViewClient
 import androidx.appcompat.app.AppCompatActivity
 import com.ding1ding.jsbridge.Callback
 import com.ding1ding.jsbridge.ConsolePipe
-import com.ding1ding.jsbridge.Handler
+import com.ding1ding.jsbridge.MessageHandler
 import com.ding1ding.jsbridge.WebViewJavascriptBridge
 import com.ding1ding.jsbridge.model.Person
 
@@ -32,7 +32,7 @@ class MainActivity :
   @SuppressLint("SetJavaScriptEnabled")
   private fun setupWebView() {
     webView = findViewById<WebView>(R.id.webView).apply {
-      WebView.setWebContentsDebuggingEnabled(true)
+      // WebView.setWebContentsDebuggingEnabled(true)
       settings.javaScriptEnabled = true
       settings.allowUniversalAccessFromFileURLs = true
       webViewClient = createWebViewClient()
@@ -70,14 +70,14 @@ class MainActivity :
     }
   }
 
-  private fun createDeviceLoadHandler() = object : Handler<Map<String, String>, Any> {
+  private fun createDeviceLoadHandler() = object : MessageHandler<Map<String, String>, Any> {
     override fun handle(parameter: Map<String, String>): Any {
       Log.d(TAG, "DeviceLoadJavascriptSuccess, $parameter")
       return mapOf("result" to "Android")
     }
   }
 
-  private fun createObjTestHandler() = object : Handler<Map<String, Any>, Map<String, Any>> {
+  private fun createObjTestHandler() = object : MessageHandler<Map<String, Any>, Map<String, Any>> {
     override fun handle(parameter: Map<String, Any>): Map<String, Any> {
       val name = parameter["name"] as? String ?: ""
       val age = (parameter["age"] as? Number)?.toInt() ?: 0
@@ -100,7 +100,7 @@ class MainActivity :
   private fun callJsHandler(handlerName: String) {
     bridge.callHandler(
       handlerName,
-      Person("Hayring", 23),
+      Person("Wukong", 23),
       object : Callback<Any> {
         override fun onResult(result: Any) {
           Log.d(TAG, "$handlerName, $result")

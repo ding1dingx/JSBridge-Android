@@ -11,7 +11,7 @@ class WebViewJavascriptBridge(private val context: Context, private val webView:
   var consolePipe: ConsolePipe? = null
 
   private val responseCallbacks = mutableMapOf<String, Callback<*>>()
-  private val messageHandlers = mutableMapOf<String, Handler<*, *>>()
+  private val messageHandlers = mutableMapOf<String, MessageHandler<*, *>>()
   private var uniqueId = 0
 
   init {
@@ -50,8 +50,8 @@ class WebViewJavascriptBridge(private val context: Context, private val webView:
     }
   }
 
-  fun registerHandler(handlerName: String, handler: Handler<*, *>) {
-    messageHandlers[handlerName] = handler
+  fun registerHandler(handlerName: String, messageHandler: MessageHandler<*, *>) {
+    messageHandlers[handlerName] = messageHandler
   }
 
   fun removeHandler(handlerName: String) {
@@ -100,10 +100,10 @@ class WebViewJavascriptBridge(private val context: Context, private val webView:
 
   private fun handleRequest(message: ResponseMessage) {
     when (val handler = messageHandlers[message.handlerName]) {
-      is Handler<*, *> -> {
+      is MessageHandler<*, *> -> {
         @Suppress("UNCHECKED_CAST")
-        val typedHandler = handler as Handler<Any?, Any?>
-        val responseData = typedHandler.handle(message.data)
+        val typedMessageHandler = handler as MessageHandler<Any?, Any?>
+        val responseData = typedMessageHandler.handle(message.data)
         message.callbackId?.let { callbackId ->
           val response = ResponseMessage(callbackId, responseData, null, null, null)
           val responseString = MessageSerializer.serializeResponseMessage(response)
