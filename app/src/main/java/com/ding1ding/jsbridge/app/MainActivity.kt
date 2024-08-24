@@ -11,6 +11,7 @@ import com.ding1ding.jsbridge.Callback
 import com.ding1ding.jsbridge.ConsolePipe
 import com.ding1ding.jsbridge.Handler
 import com.ding1ding.jsbridge.WebViewJavascriptBridge
+import com.ding1ding.jsbridge.model.Person
 
 class MainActivity :
   AppCompatActivity(),
