@@ -7,7 +7,9 @@ import android.webkit.JavascriptInterface
 import android.webkit.WebView
 
 class WebViewJavascriptBridge(private val context: Context, private val webView: WebView) {
+
   var consolePipe: ConsolePipe? = null
+
   private val responseCallbacks = mutableMapOf<String, Callback<*>>()
   private val messageHandlers = mutableMapOf<String, Handler<*, *>>()
   private var uniqueId = 0
@@ -16,7 +18,13 @@ class WebViewJavascriptBridge(private val context: Context, private val webView:
     setupBridge()
   }
 
-  @SuppressLint("SetJavaScriptEnabled", "JavascriptInterface")
+  fun reset() {
+    responseCallbacks.clear()
+    messageHandlers.clear()
+    uniqueId = 0
+  }
+
+  @SuppressLint("SetJavaScriptEnabled")
   private fun setupBridge() {
     webView.settings.javaScriptEnabled = true
     webView.addJavascriptInterface(this, "normalPipe")
@@ -72,7 +80,7 @@ class WebViewJavascriptBridge(private val context: Context, private val webView:
         handleRequest(message)
       }
     } catch (e: Exception) {
-      Log.d("[JsBridge]", "Error processing message: ${e.message}")
+      Log.e("[JsBridge]", "Error processing message: ${e.message}")
     }
   }
 
