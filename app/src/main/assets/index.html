@@ -85,7 +85,7 @@
         bridge.registerHandler('TestJavascriptCallNative', function (data) {
           console.log('TestJavascriptCallNative called with data:', data);
           setTimeout(() => {
-            bridge.callHandler('ObjTest', { name: 'Hayring', age: 23 }, function (response) {
+            bridge.callHandler('ObjTest', { name: 'Wukong', age: 23 }, function (response) {
               console.log('ObjTest raw response:', response);
               console.log('ObjTest response type:', typeof response);
 
@@ -112,7 +112,7 @@
                 document.getElementById('SDBridge').innerText = 'Error: Unexpected response format';
               }
             });
-          }, 1000);
+          }, 200);
         });
       }, 1500);
     </script>

@@ -3,7 +3,6 @@ agp = "8.2.2"
 kotlin = "1.9.25"
 
 coreKtx = "1.13.1"
-kotlinReflect = "1.9.25"
 lifecycleRuntimeKtx = "2.8.4"
 
 appcompat = "1.7.0"
@@ -17,7 +16,7 @@ junitVersion = "1.2.1"
 espressoCore = "3.6.1"
 
 [libraries]
-kotlin-reflect = { module = "org.jetbrains.kotlin:kotlin-reflect", version.ref = "kotlinReflect" }
+#kotlin-reflect = { module = "org.jetbrains.kotlin:kotlin-reflect", version.ref = "kotlin" }
 
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
 androidx-lifecycle-runtime-ktx = { group = "androidx.lifecycle", name = "lifecycle-runtime-ktx", version.ref = "lifecycleRuntimeKtx" }
