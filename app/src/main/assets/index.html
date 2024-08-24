@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Document</title>
+    <style>
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial,
+          sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol';
+        word-wrap: break-word;
+        overflow-wrap: break-word;
+        width: 100%;
+        margin: 0;
+        box-sizing: border-box;
+      }
+
+      p {
+        width: 100%;
+      }
+
+      .content {
+        padding: 16px;
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="content">
+      <h1>WebViewJavascriptBridge Demo</h1>
+      <div id="SDBridge">web content</div>
+    </div>
+
+    <script>
+      // Give webview 1.5s to load other javascript files.
+      setTimeout(() => {
+        console.log('Javascript: Hello World.');
+
+        const bridge = window.WebViewJavascriptBridge;
+
+        bridge.callHandler('DeviceLoadJavascriptSuccess', { key: 'JSValue' }, function (response) {
+          const { result } = response;
+          const platforms = {
+            iOS: 'iOS',
+            Android: 'Android',
+          };
+
+          if (result in platforms) {
+            const message = `Javascript was loaded by ${result} and successfully loaded.`;
+            console.log(message);
+            document.getElementById('SDBridge').innerText = message;
+            window[`${result}LoadJSSuccess`] = true;
+          }
+        });
+
+        // JS register method is called by native
+        bridge.registerHandler('GetToken', (data, responseCallback) => {
+          console.log(data);
+          document.getElementById('SDBridge').innerText = `JS get native data: ${JSON.stringify(
+            data
+          )}`;
+          const result = { token: "I am javascript's token" };
+          // JS gets the data and returns it to the native
+          responseCallback(result);
+        });
+
+        bridge.registerHandler('AsyncCall', async (data, responseCallback) => {
+          console.log(data);
+          document.getElementById('SDBridge').innerText = `JS get native data: ${JSON.stringify(
+            data
+          )}`;
+          const callback = await generatorLogNumber(1);
+          const result = { token: callback };
+          responseCallback(result);
+        });
+
+        const generatorLogNumber = n => {
+          return new Promise(resolve => {
+            setTimeout(() => {
+              resolve('Javascript async/await callback Ok');
+            }, 1000);
+          });
+        };
+
+        bridge.registerHandler('TestJavascriptCallNative', function (data) {
+          console.log('TestJavascriptCallNative called with data:', data);
+          setTimeout(() => {
+            bridge.callHandler('ObjTest', { name: 'Hayring', age: 23 }, function (response) {
+              console.log('ObjTest raw response:', response);
+              console.log('ObjTest response type:', typeof response);
+
+              let parsedResponse;
+              try {
+                parsedResponse = typeof response === 'string' ? JSON.parse(response) : response;
+              } catch (e) {
+                console.error('Error parsing response:', e);
+                parsedResponse = response;
+              }
+
+              console.log('ObjTest parsed response:', parsedResponse);
+
+              if (parsedResponse && parsedResponse.age) {
+                const age = parseInt(parsedResponse.age, 10);
+                if (!isNaN(age)) {
+                  document.getElementById('SDBridge').innerText = 'Age added, current age = ' + age;
+                } else {
+                  console.error('Invalid age value:', parsedResponse.age);
+                  document.getElementById('SDBridge').innerText = 'Error: Invalid age value';
+                }
+              } else {
+                console.error('Unexpected response format:', parsedResponse);
+                document.getElementById('SDBridge').innerText = 'Error: Unexpected response format';
+              }
+            });
+          }, 1000);
+        });
+      }, 1500);
+    </script>
+  </body>
+</html>

@@ -25,3 +25,4 @@ dependencyResolutionManagement {
 rootProject.name = "JsBridge-Kotlin"
 
 include(":app")
+include(":library")
