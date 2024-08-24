@@ -1,5 +1,6 @@
 package com.ding1ding.jsbridge
 
+import android.util.Log
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -29,7 +30,7 @@ object JsonUtils {
       else -> json
     }
   } catch (e: Exception) {
-    println("Error parsing JSON: ${e.message}")
+    Log.d("[JsBridge]", "Error parsing JSON: ${e.message}")
     null
   }
 

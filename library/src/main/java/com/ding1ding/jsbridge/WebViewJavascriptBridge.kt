@@ -2,6 +2,7 @@ package com.ding1ding.jsbridge
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.util.Log
 import android.webkit.JavascriptInterface
 import android.webkit.WebView
 
@@ -71,11 +72,11 @@ class WebViewJavascriptBridge(private val context: Context, private val webView:
         handleRequest(message)
       }
     } catch (e: Exception) {
-      println("Error processing message: ${e.message}")
+      Log.d("[JsBridge]", "Error processing message: ${e.message}")
     }
   }
 
-  private fun handleResponse(responseMessage: ResponseMessage) {
+  /*private fun handleResponse(responseMessage: ResponseMessage) {
     val callback = responseCallbacks.remove(responseMessage.responseId) as? Callback<Any?>
     callback?.onResult(responseMessage.responseData)
   }
@@ -90,18 +91,51 @@ class WebViewJavascriptBridge(private val context: Context, private val webView:
         dispatchMessage(responseString)
       }
     }
+  }*/
+
+  private fun handleResponse(responseMessage: ResponseMessage) {
+    when (val callback = responseCallbacks.remove(responseMessage.responseId)) {
+      is Callback<*> -> {
+        @Suppress("UNCHECKED_CAST")
+        (callback as Callback<Any?>).onResult(responseMessage.responseData)
+      }
+
+      else -> Log.w(
+        "[JsBridge]",
+        "Callback not found or has invalid type for responseId: ${responseMessage.responseId}",
+      )
+    }
+  }
+
+  private fun handleRequest(message: ResponseMessage) {
+    when (val handler = messageHandlers[message.handlerName]) {
+      is Handler<*, *> -> {
+        @Suppress("UNCHECKED_CAST")
+        val typedHandler = handler as Handler<Any?, Any?>
+        val responseData = typedHandler.handle(message.data)
+        message.callbackId?.let { callbackId ->
+          val response = ResponseMessage(callbackId, responseData, null, null, null)
+          val responseString = MessageSerializer.serializeResponseMessage(response)
+          dispatchMessage(responseString)
+        }
+      }
+
+      else -> Log.w(
+        "[JsBridge]",
+        "Handler not found or has invalid type for handlerName: ${message.handlerName}",
+      )
+    }
   }
 
   private fun dispatchMessage(messageString: String) {
-    val escapedMessage = messageString.replace("\\", "\\\\").replace("\"", "\\\"")
-    val javascript = "WebViewJavascriptBridge.handleMessageFromNative('$escapedMessage');"
-    webView.post { webView.evaluateJavascript(javascript, null) }
+    val script = "WebViewJavascriptBridge.handleMessageFromNative('$messageString');"
+    webView.post { webView.evaluateJavascript(script, null) }
   }
 
   private fun loadAsset(fileName: String): String = try {
     context.assets.open(fileName).bufferedReader().use { it.readText() }
   } catch (e: Exception) {
-    println("Error loading asset $fileName: ${e.message}")
+    Log.e("[JsBridge]", "Error loading asset $fileName: ${e.message}")
     ""
   }
 }
