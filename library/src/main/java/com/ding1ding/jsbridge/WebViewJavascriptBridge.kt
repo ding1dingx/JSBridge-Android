@@ -34,8 +34,8 @@ class WebViewJavascriptBridge(private val context: Context, private val webView:
   }
 
   fun injectJavascript() {
-    val bridgeScript = loadAsset("bridge.js")
-    val consoleHookScript = loadAsset("hookConsole.js")
+    val bridgeScript = loadAsset("bridge.js").trimIndent()
+    val consoleHookScript = loadAsset("hookConsole.js").trimIndent()
     webView.post {
       webView.evaluateJavascript("javascript:$bridgeScript", null)
       webView.evaluateJavascript("javascript:$consoleHookScript", null)
@@ -51,7 +51,7 @@ class WebViewJavascriptBridge(private val context: Context, private val webView:
   }
 
   fun callHandler(handlerName: String, data: Any? = null, callback: Callback<*>? = null) {
-    val callbackId = callback?.let { "${++uniqueId}" }
+    val callbackId = callback?.let { "native_cb_${++uniqueId}" }
     callbackId?.let { responseCallbacks[it] = callback }
 
     val message = CallMessage(handlerName, data, callbackId)
@@ -75,23 +75,6 @@ class WebViewJavascriptBridge(private val context: Context, private val webView:
       Log.d("[JsBridge]", "Error processing message: ${e.message}")
     }
   }
-
-  /*private fun handleResponse(responseMessage: ResponseMessage) {
-    val callback = responseCallbacks.remove(responseMessage.responseId) as? Callback<Any?>
-    callback?.onResult(responseMessage.responseData)
-  }
-
-  private fun handleRequest(message: ResponseMessage) {
-    val handler = messageHandlers[message.handlerName] as? Handler<Any?, Any?>
-    handler?.let {
-      val responseData = it.handle(message.data)
-      message.callbackId?.let { callbackId ->
-        val response = ResponseMessage(callbackId, responseData, null, null, null)
-        val responseString = MessageSerializer.serializeResponseMessage(response)
-        dispatchMessage(responseString)
-      }
-    }
-  }*/
 
   private fun handleResponse(responseMessage: ResponseMessage) {
     when (val callback = responseCallbacks.remove(responseMessage.responseId)) {

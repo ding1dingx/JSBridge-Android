@@ -128,7 +128,7 @@ object MessageSerializer {
         constructor.isAccessible = true
         constructor.newInstance(*data.values.toTypedArray())
       } catch (e: Exception) {
-        Log.d("[JsBridge]", "Error creating instance of ${clazz.simpleName}: ${e.message}")
+        Log.e("[JsBridge]", "Error creating instance of ${clazz.simpleName}: ${e.message}")
         data
       }
     }
