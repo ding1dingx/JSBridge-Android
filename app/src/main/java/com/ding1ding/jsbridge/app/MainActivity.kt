@@ -28,7 +28,6 @@ class MainActivity :
     super.onCreate(savedInstanceState)
     setContentView(R.layout.activity_main)
     setupWebView()
-    setupBridge()
     setupClickListeners()
   }
 
@@ -56,9 +55,6 @@ class MainActivity :
   }
 
   override fun onDestroy() {
-    // 01
-    bridge.release()
-    // 02
     releaseWebView()
     Log.d(TAG, "onDestroy")
     super.onDestroy()
@@ -84,14 +80,17 @@ class MainActivity :
         allowUniversalAccessFromFileURLs = true
       }
       webViewClient = createWebViewClient()
-      loadUrl("file:///android_asset/index.html")
     }
 
     webViewContainer.addView(webView)
+
+    setupWebViewBridge(webView)
+
+    webView.loadUrl("file:///android_asset/index.html")
   }
 
-  private fun setupBridge() {
-    bridge = WebViewJavascriptBridge(this, webView).apply {
+  private fun setupWebViewBridge(webView: WebView) {
+    bridge = WebViewJavascriptBridge.create(this, webView, lifecycle).apply {
       consolePipe = object : ConsolePipe {
         override fun post(message: String) {
           Log.d("[console.log]", message)
@@ -112,7 +111,6 @@ class MainActivity :
   private fun createWebViewClient() = object : WebViewClient() {
     override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
       Log.d(TAG, "onPageStarted")
-      bridge.injectJavascript()
     }
 
     override fun onPageFinished(view: WebView?, url: String?) {
