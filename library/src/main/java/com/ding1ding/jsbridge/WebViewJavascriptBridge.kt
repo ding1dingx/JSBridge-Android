@@ -5,23 +5,50 @@ import android.content.Context
 import android.util.Log
 import android.webkit.JavascriptInterface
 import android.webkit.WebView
+import androidx.annotation.MainThread
+import java.util.concurrent.atomic.AtomicInteger
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 
-class WebViewJavascriptBridge(private val context: Context, private val webView: WebView) {
-
+class WebViewJavascriptBridge @JvmOverloads constructor(
+  private val context: Context,
+  private val webView: WebView,
+  private val coroutineScope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main),
+) {
+  @JvmField
   var consolePipe: ConsolePipe? = null
 
   private val responseCallbacks = mutableMapOf<String, Callback<*>>()
   private val messageHandlers = mutableMapOf<String, MessageHandler<*, *>>()
-  private var uniqueId = 0
+  private val uniqueId = AtomicInteger(0)
+
+  private val bridgeScript by lazy { loadAsset("bridge.js") }
+  private val consoleHookScript by lazy { loadAsset("hookConsole.js") }
+
+  private var isInjected = false
 
   init {
     setupBridge()
   }
 
-  fun reset() {
+  @JvmOverloads
+  fun reset(clearHandlers: Boolean = false) = synchronized(this) {
+    responseCallbacks.clear()
+    if (clearHandlers) {
+      messageHandlers.clear()
+    }
+    uniqueId.set(0)
+    isInjected = false
+  }
+
+  fun release() {
+    removeJavascriptInterface()
+    consolePipe = null
     responseCallbacks.clear()
     messageHandlers.clear()
-    uniqueId = 0
+    coroutineScope.launch { /* Cancel all ongoing coroutines */ }.cancel()
   }
 
   @SuppressLint("SetJavaScriptEnabled")
@@ -31,9 +58,10 @@ class WebViewJavascriptBridge(private val context: Context, private val webView:
     webView.addJavascriptInterface(this, "consolePipe")
   }
 
-  fun removeJavascriptInterface() {
+  private fun removeJavascriptInterface() = synchronized(this) {
     webView.removeJavascriptInterface("normalPipe")
     webView.removeJavascriptInterface("consolePipe")
+    reset(true)
   }
 
   @JavascriptInterface
@@ -46,25 +74,30 @@ class WebViewJavascriptBridge(private val context: Context, private val webView:
     consolePipe?.post(data.orEmpty())
   }
 
+  @MainThread
   fun injectJavascript() {
-    val bridgeScript = loadAsset("bridge.js").trimIndent()
-    val consoleHookScript = loadAsset("hookConsole.js").trimIndent()
-    webView.post {
+    if (!isInjected) {
       webView.evaluateJavascript("javascript:$bridgeScript", null)
       webView.evaluateJavascript("javascript:$consoleHookScript", null)
+      isInjected = true
     }
   }
 
   fun registerHandler(handlerName: String, messageHandler: MessageHandler<*, *>) {
-    messageHandlers[handlerName] = messageHandler
+    synchronized(messageHandlers) {
+      messageHandlers[handlerName] = messageHandler
+    }
   }
 
   fun removeHandler(handlerName: String) {
-    messageHandlers.remove(handlerName)
+    synchronized(messageHandlers) {
+      messageHandlers.remove(handlerName)
+    }
   }
 
+  @JvmOverloads
   fun callHandler(handlerName: String, data: Any? = null, callback: Callback<*>? = null) {
-    val callbackId = callback?.let { "native_cb_${++uniqueId}" }
+    val callbackId = callback?.let { "native_cb_${uniqueId.incrementAndGet()}" }
     callbackId?.let { responseCallbacks[it] = callback }
 
     val message = CallMessage(handlerName, data, callbackId)
@@ -73,53 +106,42 @@ class WebViewJavascriptBridge(private val context: Context, private val webView:
   }
 
   private fun processMessage(messageString: String) {
-    try {
-      val message = MessageSerializer.deserializeResponseMessage(
-        messageString,
-        responseCallbacks,
-        messageHandlers,
-      )
-      if (message.responseId != null) {
-        handleResponse(message)
-      } else {
-        handleRequest(message)
-      }
-    } catch (e: Exception) {
-      Log.e("[JsBridge]", "Error processing message: ${e.message}")
-    }
-  }
-
-  private fun handleResponse(responseMessage: ResponseMessage) {
-    when (val callback = responseCallbacks.remove(responseMessage.responseId)) {
-      is Callback<*> -> {
-        @Suppress("UNCHECKED_CAST")
-        (callback as Callback<Any?>).onResult(responseMessage.responseData)
-      }
-
-      else -> Log.w(
-        "[JsBridge]",
-        "Callback not found or has invalid type for responseId: ${responseMessage.responseId}",
-      )
-    }
-  }
-
-  private fun handleRequest(message: ResponseMessage) {
-    when (val handler = messageHandlers[message.handlerName]) {
-      is MessageHandler<*, *> -> {
-        @Suppress("UNCHECKED_CAST")
-        val typedMessageHandler = handler as MessageHandler<Any?, Any?>
-        val responseData = typedMessageHandler.handle(message.data)
-        message.callbackId?.let { callbackId ->
-          val response = ResponseMessage(callbackId, responseData, null, null, null)
-          val responseString = MessageSerializer.serializeResponseMessage(response)
-          dispatchMessage(responseString)
+    coroutineScope.launch(Dispatchers.Default) {
+      try {
+        val message = MessageSerializer.deserializeResponseMessage(
+          messageString,
+          responseCallbacks,
+          messageHandlers,
+        )
+        when {
+          message.responseId != null -> handleResponse(message)
+          else -> handleRequest(message)
         }
+      } catch (e: Exception) {
+        Log.e("[JsBridge]", "Error processing message: ${e.message}")
       }
+    }
+  }
 
-      else -> Log.w(
-        "[JsBridge]",
-        "Handler not found or has invalid type for handlerName: ${message.handlerName}",
-      )
+  private suspend fun handleResponse(responseMessage: ResponseMessage) {
+    val callback = responseCallbacks.remove(responseMessage.responseId)
+    if (callback is Callback<*>) {
+      @Suppress("UNCHECKED_CAST")
+      (callback as Callback<Any?>).onResult(responseMessage.responseData)
+    }
+  }
+
+  private suspend fun handleRequest(message: ResponseMessage) {
+    val handler = messageHandlers[message.handlerName]
+    if (handler is MessageHandler<*, *>) {
+      @Suppress("UNCHECKED_CAST")
+      val typedMessageHandler = handler as MessageHandler<Any?, Any?>
+      val responseData = typedMessageHandler.handle(message.data)
+      message.callbackId?.let { callbackId ->
+        val response = ResponseMessage(callbackId, responseData, null, null, null)
+        val responseString = MessageSerializer.serializeResponseMessage(response)
+        dispatchMessage(responseString)
+      }
     }
   }
 
@@ -128,10 +150,10 @@ class WebViewJavascriptBridge(private val context: Context, private val webView:
     webView.post { webView.evaluateJavascript(script, null) }
   }
 
-  private fun loadAsset(fileName: String): String = try {
+  private fun loadAsset(fileName: String): String = runCatching {
     context.assets.open(fileName).bufferedReader().use { it.readText() }
-  } catch (e: Exception) {
-    Log.e("[JsBridge]", "Error loading asset $fileName: ${e.message}")
+  }.getOrElse {
+    Log.e("[JsBridge]", "Error loading asset $fileName: ${it.message}")
     ""
-  }
+  }.trimIndent()
 }
