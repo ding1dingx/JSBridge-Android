@@ -3,7 +3,9 @@ package com.ding1ding.jsbridge
 import java.math.BigInteger
 import java.util.Date
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -36,8 +38,37 @@ class JsonUtilsTest {
 
   @Test
   fun testToJsonMap() {
-    val map = mapOf("key" to "value", "number" to 42)
-    assertEquals("{\"key\":\"value\",\"number\":42}", JsonUtils.toJson(map))
+    val original = mapOf(
+      "key" to "value",
+      "number" to 42,
+      "boolean" to true,
+      "null" to null,
+      "nested" to mapOf("inner" to "value"),
+      "array" to listOf(1, 2, 3),
+    )
+    val json = JsonUtils.toJson(original)
+    println("JSON: $json")
+
+    // 将 JSON 字符串解析回对象
+    val result = JsonUtils.fromJson(json) as? Map<*, *>
+    assertNotNull("Parsed result should not be null", result)
+
+    // 比较原始 Map 和解析后的 Map
+    assertEquals(original.size, result?.size)
+    assertEquals(original["key"], result?.get("key"))
+    assertEquals(original["number"], result?.get("number"))
+    assertEquals(original["boolean"], result?.get("boolean"))
+    assertNull(result?.get("null"))
+
+    val originalNested = original["nested"] as Map<*, *>
+    val resultNested = result?.get("nested") as? Map<*, *>
+    assertNotNull("Nested object should not be null", resultNested)
+    assertEquals(originalNested["inner"], resultNested?.get("inner"))
+
+    val originalArray = original["array"] as List<*>
+    val resultArray = result?.get("array") as? List<*>
+    assertNotNull("Array should not be null", resultArray)
+    assertEquals(originalArray, resultArray)
   }
 
   @Test
@@ -120,17 +151,35 @@ class JsonUtilsTest {
       "object" to mapOf("nested" to "value"),
     )
     val json = JsonUtils.toJson(original)
-    val result = JsonUtils.fromJson(json) as Map<*, *>
+    println("JSON: $json")
 
-    assertEquals(original["string"], result["string"])
-    assertEquals(original["number"], result["number"])
-    assertEquals(original["boolean"], result["boolean"])
-    assertNull(result["null"])
-    assertEquals(original["array"], result["array"])
-    assertEquals(
-      (original["object"] as Map<*, *>)["nested"],
-      (result["object"] as Map<*, *>)["nested"],
-    )
+    val result = JsonUtils.fromJson(json)
+    println("Result: $result")
+
+    // 检查 result 的类型
+    assertTrue("Result should be a Map, but was ${result?.javaClass}", result is Map<*, *>)
+
+    if (result is Map<*, *>) {
+      assertEquals(original["string"], result["string"])
+      assertEquals(original["number"], result["number"])
+      assertEquals(original["boolean"], result["boolean"])
+      assertNull(result["null"])
+
+      val array = result["array"]
+      assertTrue("Array should be a List, but was ${array?.javaClass}", array is List<*>)
+      if (array is List<*>) {
+        assertEquals(original["array"], array)
+      }
+
+      val nestedObject = result["object"]
+      assertTrue(
+        "Nested object should be a Map, but was ${nestedObject?.javaClass}",
+        nestedObject is Map<*, *>,
+      )
+      if (nestedObject is Map<*, *>) {
+        assertEquals((original["object"] as Map<*, *>)["nested"], nestedObject["nested"])
+      }
+    }
   }
 
   @Test

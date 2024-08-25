@@ -19,56 +19,80 @@ object JsonUtils {
     is String -> JSONObject.quote(any)
     is Boolean, is Number -> any.toString()
     is Date -> JSONObject.quote(isoDateFormat.format(any))
-    is Map<*, *> -> any.toJsonObject().toString()
-    is Collection<*> -> any.toJsonArray().toString()
+    is Map<*, *> -> mapToJson(any)
+    is Collection<*> -> collectionToJson(any)
     is Enum<*> -> JSONObject.quote(any.name)
     else -> try {
-      any::class.java.declaredFields
-        .filter { !it.isSynthetic }
-        .associate { field ->
-          field.isAccessible = true
-          field.name to field.get(any)
-        }.toJsonObject().toString()
+      objectToJson(any)
     } catch (e: Exception) {
       Logger.e(e) { "Failed to serialize object of type ${any::class.java.simpleName}" }
       JSONObject.quote(any.toString())
     }
   }
 
-  private fun Map<*, *>.toJsonObject() = JSONObject().apply {
-    forEach { (key, value) ->
-      put(key.toString(), value?.let { toJsonValue(it) } ?: JSONObject.NULL)
+  private fun mapToJson(map: Map<*, *>): String {
+    val jsonObject = JSONObject()
+    for ((key, value) in map) {
+      jsonObject.put(key.toString(), toJsonValue(value))
     }
+    return jsonObject.toString()
   }
 
-  private fun Collection<*>.toJsonArray() = JSONArray(
-    map {
-      it?.let { toJsonValue(it) }
-        ?: JSONObject.NULL
-    },
-  )
+  private fun collectionToJson(collection: Collection<*>): String {
+    val jsonArray = JSONArray()
+    for (item in collection) {
+      jsonArray.put(toJsonValue(item))
+    }
+    return jsonArray.toString()
+  }
 
-  private fun toJsonValue(value: Any): Any = when (value) {
-    is JSONObject, is JSONArray, is String, is Boolean, is Number -> value
+  private fun objectToJson(obj: Any): String {
+    val jsonObject = JSONObject()
+    obj::class.java.declaredFields
+      .filter { !it.isSynthetic }
+      .forEach { field ->
+        field.isAccessible = true
+        jsonObject.put(field.name, toJsonValue(field.get(obj)))
+      }
+    return jsonObject.toString()
+  }
+
+  private fun toJsonValue(value: Any?): Any? = when (value) {
+    null -> JSONObject.NULL
+    is JSONObject, is JSONArray, is String, is Boolean, is Number, is Char -> value
+    is Map<*, *> -> JSONObject(mapToJson(value))
+    is Collection<*> -> JSONArray(collectionToJson(value))
+    is Date -> isoDateFormat.format(value)
+    is Enum<*> -> value.name
     else -> toJson(value)
   }
 
   fun fromJson(json: String): Any? = try {
     when {
       json == "null" -> null
-      json.startsWith("{") && json.endsWith("}") -> JSONObject(json).toMap()
-      json.startsWith("[") && json.endsWith("]") -> JSONArray(json).toList()
-      json.startsWith("\"") && json.endsWith("\"") -> json.unquote().let { unquoted ->
+      json.startsWith("{") && json.endsWith("}") -> parseJsonObject(json)
+      json.startsWith("[") && json.endsWith("]") -> parseJsonArray(json)
+      json.startsWith("\"") && json.endsWith("\"") -> {
+        val unquoted = json.substring(1, json.length - 1)
         tryParseDate(unquoted) ?: unquoted
       }
 
       json == "true" -> true
       json == "false" -> false
-      else -> parseNumber(json)
+      else -> parseNumber(json) ?: json
     }
   } catch (e: Exception) {
     Logger.e(e) { "Error parsing JSON: $json" }
     json // Return the original string if parsing fails
+  }
+
+  private fun parseJsonObject(json: String): Map<String, Any?> =
+    JSONObject(json).keys().asSequence().associateWith { key ->
+      fromJson(JSONObject(json).get(key).toString())
+    }
+
+  private fun parseJsonArray(json: String): List<Any?> = JSONArray(json).let { array ->
+    (0 until array.length()).map { fromJson(array.get(it).toString()) }
   }
 
   private fun JSONObject.toMap(): Map<String, Any?> = keys().asSequence().associateWith { key ->
@@ -89,7 +113,7 @@ object JsonUtils {
     }
   }
 
-  private fun parseNumber(value: String): Any = when {
+  private fun parseNumber(value: String): Any? = when {
     value.contains(".") || value.lowercase(Locale.US).contains("e") -> {
       try {
         val doubleValue = value.toDouble()
@@ -99,7 +123,7 @@ object JsonUtils {
           else -> doubleValue
         }
       } catch (e: NumberFormatException) {
-        value
+        null
       }
     }
 
@@ -114,7 +138,7 @@ object JsonUtils {
         try {
           BigInteger(value)
         } catch (e: NumberFormatException) {
-          value
+          null
         }
       }
     }
@@ -124,11 +148,5 @@ object JsonUtils {
     isoDateFormat.parse(value)
   } catch (e: Exception) {
     null
-  }
-
-  private fun String.unquote(): String = if (length >= 2 && startsWith('"') && endsWith('"')) {
-    substring(1, length - 1).replace("\\\"", "\"").replace("\\\\", "\\")
-  } else {
-    this
   }
 }
