@@ -59,15 +59,16 @@ object MessageSerializer {
     return json.toString().escapeJavascript()
   }
 
+  @JvmStatic
   fun deserializeResponseMessage(
     jsonString: String,
     responseCallbacks: Map<String, Callback<*>>,
     messageHandlers: Map<String, MessageHandler<*, *>>,
-  ): ResponseMessage {
+  ): ResponseMessage = try {
     val json = JSONObject(jsonString)
     val responseId = json.optString(RESPONSE_ID)
 
-    return if (responseId.isNotEmpty()) {
+    if (responseId.isNotEmpty()) {
       val callback = responseCallbacks[responseId]
       val targetType = callback?.javaClass?.genericInterfaces?.firstOrNull()?.let {
         (it as? ParameterizedType)?.actualTypeArguments?.firstOrNull()
@@ -93,6 +94,9 @@ object MessageSerializer {
         data = parseData(json.optString(DATA), targetType),
       )
     }
+  } catch (e: Exception) {
+    Log.e("[JsBridge]", "Error deserializing message: ${e.message}")
+    ResponseMessage(null, null, null, null, null)
   }
 
   private fun parseData(jsonString: String, targetType: Type?): Any? {

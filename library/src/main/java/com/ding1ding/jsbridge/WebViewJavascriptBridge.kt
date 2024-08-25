@@ -8,11 +8,15 @@ import android.webkit.WebView
 
 class WebViewJavascriptBridge(private val context: Context, private val webView: WebView) {
 
+  @JvmField
   var consolePipe: ConsolePipe? = null
 
   private val responseCallbacks = mutableMapOf<String, Callback<*>>()
   private val messageHandlers = mutableMapOf<String, MessageHandler<*, *>>()
   private var uniqueId = 0
+
+  private val bridgeScript by lazy { loadAsset("bridge.js").trimIndent() }
+  private val consoleHookScript by lazy { loadAsset("hookConsole.js").trimIndent() }
 
   init {
     setupBridge()
@@ -47,8 +51,6 @@ class WebViewJavascriptBridge(private val context: Context, private val webView:
   }
 
   fun injectJavascript() {
-    val bridgeScript = loadAsset("bridge.js").trimIndent()
-    val consoleHookScript = loadAsset("hookConsole.js").trimIndent()
     webView.post {
       webView.evaluateJavascript("javascript:$bridgeScript", null)
       webView.evaluateJavascript("javascript:$consoleHookScript", null)
@@ -63,6 +65,7 @@ class WebViewJavascriptBridge(private val context: Context, private val webView:
     messageHandlers.remove(handlerName)
   }
 
+  @JvmOverloads
   fun callHandler(handlerName: String, data: Any? = null, callback: Callback<*>? = null) {
     val callbackId = callback?.let { "native_cb_${++uniqueId}" }
     callbackId?.let { responseCallbacks[it] = callback }
