@@ -98,10 +98,15 @@ class MainActivity :
   }
 
   private fun setupWebViewBridge(webView: WebView) {
-    bridge = WebViewJavascriptBridge.create(this, webView, lifecycle).apply {
+    bridge = WebViewJavascriptBridge.create(
+      context = this,
+      webView = webView,
+      lifecycle = lifecycle,
+      webViewClient = createWebViewClient(),
+    ).apply {
       consolePipe = object : ConsolePipe {
         override fun post(message: String) {
-          Logger.d("[console.log]") { message }
+          Logger.i("[console.log]") { message }
         }
       }
 
@@ -124,7 +129,6 @@ class MainActivity :
 
     override fun onPageFinished(view: WebView?, url: String?) {
       super.onPageFinished(view, url)
-      bridge.injectJavascriptIfNeeded()
       Logger.d(TAG) { "onPageFinished" }
     }
   }

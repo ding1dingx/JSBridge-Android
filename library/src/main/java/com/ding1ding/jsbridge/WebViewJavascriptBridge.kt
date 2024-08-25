@@ -12,6 +12,12 @@ import androidx.lifecycle.LifecycleOwner
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 
 class WebViewJavascriptBridge private constructor(
   private val context: Context,
@@ -29,6 +35,8 @@ class WebViewJavascriptBridge private constructor(
 
   private val isInjected = AtomicBoolean(false)
   private val isWebViewReady = AtomicBoolean(false)
+
+  private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
   init {
     setupBridge()
@@ -60,8 +68,7 @@ class WebViewJavascriptBridge private constructor(
         ),
       )
       override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean =
-        client?.shouldOverrideUrlLoading(view, url)
-          ?: super.shouldOverrideUrlLoading(view, url)
+        client?.shouldOverrideUrlLoading(view, url) ?: super.shouldOverrideUrlLoading(view, url)
 
       // Add other WebViewClient methods as needed, delegating to the client if it's not null
     }
@@ -76,7 +83,7 @@ class WebViewJavascriptBridge private constructor(
       return
     }
     Logger.d { "Injecting JavaScript" }
-    webView.post {
+    scope.launch {
       webView.evaluateJavascript("javascript:$bridgeScript", null)
       webView.evaluateJavascript("javascript:$consoleHookScript", null)
       isInjected.set(true)
@@ -100,9 +107,9 @@ class WebViewJavascriptBridge private constructor(
       Logger.e { "Bridge is not injected. Cannot call handler: $handlerName" }
       return
     }
-    val callbackId = callback?.let { "native_cb_${uniqueId.incrementAndGet()}" }
-    callbackId?.let { responseCallbacks[it] = callback }
-
+    val callbackId = callback?.let { "native_cb_${uniqueId.incrementAndGet()}" }?.also {
+      responseCallbacks[it] = callback
+    }
     val message = CallMessage(handlerName, data, callbackId)
     val messageString = MessageSerializer.serializeCallMessage(message)
     dispatchMessage(messageString)
@@ -110,18 +117,20 @@ class WebViewJavascriptBridge private constructor(
   }
 
   private fun processMessage(messageString: String) {
-    try {
-      val message = MessageSerializer.deserializeResponseMessage(
-        messageString,
-        responseCallbacks,
-        messageHandlers,
-      )
-      when {
-        message.responseId != null -> handleResponse(message)
-        else -> handleRequest(message)
+    scope.launch {
+      try {
+        val message = MessageSerializer.deserializeResponseMessage(
+          messageString,
+          responseCallbacks,
+          messageHandlers,
+        )
+        when {
+          message.responseId != null -> handleResponse(message)
+          else -> handleRequest(message)
+        }
+      } catch (e: Exception) {
+        Logger.e(e) { "Error processing message" }
       }
-    } catch (e: Exception) {
-      Logger.e(e) { "Error processing message" }
     }
   }
 
@@ -135,36 +144,34 @@ class WebViewJavascriptBridge private constructor(
   }
 
   private fun handleRequest(message: ResponseMessage) {
-    val handler = messageHandlers[message.handlerName]
-    if (handler is MessageHandler<*, *>) {
+    messageHandlers[message.handlerName]?.let { handler ->
       @Suppress("UNCHECKED_CAST")
-      val typedMessageHandler = handler as MessageHandler<Any?, Any?>
-      val responseData = typedMessageHandler.handle(message.data)
+      val responseData = (handler as MessageHandler<Any?, Any?>).handle(message.data)
       message.callbackId?.let { callbackId ->
         val response = ResponseMessage(callbackId, responseData, null, null, null)
         val responseString = MessageSerializer.serializeResponseMessage(response)
         dispatchMessage(responseString)
         Logger.d { "Request handled: ${message.handlerName}" }
       }
-    } else {
-      Logger.e { "No handler found for: ${message.handlerName}" }
-    }
+    } ?: Logger.e { "No handler found for: ${message.handlerName}" }
   }
 
   private fun dispatchMessage(messageString: String) {
-    val script = "WebViewJavascriptBridge.handleMessageFromNative('$messageString');"
-    webView.post {
+    scope.launch {
+      val script = "WebViewJavascriptBridge.handleMessageFromNative('$messageString');"
       webView.evaluateJavascript(script, null)
       Logger.d { "Message dispatched to JavaScript" }
     }
   }
 
-  private fun loadAsset(fileName: String): String = try {
-    context.assets.open(fileName).bufferedReader().use { it.readText() }
-  } catch (e: Exception) {
-    Logger.e(e) { "Error loading asset $fileName" }
-    ""
-  }.trimIndent()
+  private fun loadAsset(fileName: String): String = runBlocking(Dispatchers.IO) {
+    try {
+      context.assets.open(fileName).bufferedReader().use { it.readText() }.trimIndent()
+    } catch (e: Exception) {
+      Logger.e(e) { "Error loading asset $fileName" }
+      ""
+    }
+  }
 
   private fun clearState() {
     responseCallbacks.clear()
@@ -174,18 +181,14 @@ class WebViewJavascriptBridge private constructor(
     Logger.d { "Bridge state cleared" }
   }
 
-  private fun removeJavascriptInterface() {
+  private fun release() {
     webView.removeJavascriptInterface("normalPipe")
     webView.removeJavascriptInterface("consolePipe")
-    Logger.d { "JavaScript interfaces removed" }
-  }
-
-  private fun release() {
-    removeJavascriptInterface()
     consolePipe = null
     responseCallbacks.clear()
     messageHandlers.clear()
     clearState()
+    scope.cancel()
     Logger.d { "Bridge released" }
   }
 
@@ -222,17 +225,19 @@ class WebViewJavascriptBridge private constructor(
   }
 
   companion object {
+    @JvmStatic
     fun create(
       context: Context,
       webView: WebView,
       lifecycle: Lifecycle? = null,
       webViewClient: WebViewClient? = null,
-    ): WebViewJavascriptBridge = WebViewJavascriptBridge(context, webView).also { bridge ->
-      lifecycle?.addObserver(bridge)
-      bridge.setWebViewClient(webViewClient)
+    ): WebViewJavascriptBridge = WebViewJavascriptBridge(context, webView).apply {
+      lifecycle?.addObserver(this)
+      setWebViewClient(webViewClient)
       Logger.d { "Bridge created and lifecycle observer added" }
     }
 
+    @JvmStatic
     fun setLogLevel(level: Logger.LogLevel) {
       Logger.logLevel = level
     }
