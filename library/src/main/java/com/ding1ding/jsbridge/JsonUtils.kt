@@ -1,6 +1,5 @@
 package com.ding1ding.jsbridge
 
-import android.util.Log
 import java.math.BigInteger
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -31,7 +30,7 @@ object JsonUtils {
           field.name to field.get(any)
         }.toJsonObject().toString()
     } catch (e: Exception) {
-      Log.e("[JsBridge]", "Failed to serialize object of type ${any::class.java.simpleName}", e)
+      Logger.e(e) { "Failed to serialize object of type ${any::class.java.simpleName}" }
       JSONObject.quote(any.toString())
     }
   }
@@ -68,7 +67,7 @@ object JsonUtils {
       else -> parseNumber(json)
     }
   } catch (e: Exception) {
-    Log.e("[JsBridge]", "Error parsing JSON: $json", e)
+    Logger.e(e) { "Error parsing JSON: $json" }
     json // Return the original string if parsing fails
   }
 
