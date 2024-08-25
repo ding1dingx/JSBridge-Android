@@ -23,8 +23,7 @@ object MessageSerializer {
     '\u2029' to "\\u2029",
   )
 
-  @Suppress("NOTHING_TO_INLINE")
-  private inline fun String.escapeJavascript(): String = buildString(capacity = length) {
+  private fun String.escapeJavascript(): String = buildString(capacity = length) {
     for (char in this@escapeJavascript) {
       append(charsToReplace[char] ?: char)
     }
