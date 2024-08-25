@@ -1,6 +1,5 @@
 package com.ding1ding.jsbridge
 
-import android.util.Log
 import java.lang.reflect.ParameterizedType
 import java.lang.reflect.Type
 import org.json.JSONObject
@@ -95,7 +94,7 @@ object MessageSerializer {
       )
     }
   } catch (e: Exception) {
-    Log.e("[JsBridge]", "Error deserializing message: ${e.message}")
+    Logger.e(e) { "Error deserializing message: ${e.message}" }
     ResponseMessage(null, null, null, null, null)
   }
 
@@ -131,7 +130,7 @@ object MessageSerializer {
         constructor.isAccessible = true
         constructor.newInstance(*data.values.toTypedArray())
       } catch (e: Exception) {
-        Log.e("[JsBridge]", "Error creating instance of ${clazz.simpleName}: ${e.message}")
+        Logger.e(e) { "Error creating instance of ${clazz.simpleName}: ${e.message}" }
         data
       }
     }

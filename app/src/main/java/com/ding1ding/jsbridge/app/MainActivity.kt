@@ -2,7 +2,6 @@ package com.ding1ding.jsbridge.app
 
 import android.annotation.SuppressLint
 import android.os.Bundle
-import android.util.Log
 import android.view.KeyEvent
 import android.view.View
 import android.webkit.WebView
@@ -11,6 +10,7 @@ import android.widget.LinearLayout
 import androidx.appcompat.app.AppCompatActivity
 import com.ding1ding.jsbridge.Callback
 import com.ding1ding.jsbridge.ConsolePipe
+import com.ding1ding.jsbridge.Logger
 import com.ding1ding.jsbridge.MessageHandler
 import com.ding1ding.jsbridge.WebViewJavascriptBridge
 import com.ding1ding.jsbridge.model.Person
@@ -27,6 +27,13 @@ class MainActivity :
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
     setContentView(R.layout.activity_main)
+
+    if (BuildConfig.DEBUG) {
+      WebViewJavascriptBridge.setLogLevel(Logger.LogLevel.DEBUG)
+    } else {
+      WebViewJavascriptBridge.setLogLevel(Logger.LogLevel.ERROR)
+    }
+
     setupWebView()
     setupClickListeners()
   }
@@ -56,7 +63,7 @@ class MainActivity :
 
   override fun onDestroy() {
     releaseWebView()
-    Log.d(TAG, "onDestroy")
+    Logger.d(TAG) { "onDestroy" }
     super.onDestroy()
   }
 
@@ -93,7 +100,7 @@ class MainActivity :
     bridge = WebViewJavascriptBridge.create(this, webView, lifecycle).apply {
       consolePipe = object : ConsolePipe {
         override fun post(message: String) {
-          Log.d("[console.log]", message)
+          Logger.d("[console.log]") { message }
         }
       }
 
@@ -110,17 +117,17 @@ class MainActivity :
 
   private fun createWebViewClient() = object : WebViewClient() {
     override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
-      Log.d(TAG, "onPageStarted")
+      Logger.d(TAG) { "onPageStarted" }
     }
 
     override fun onPageFinished(view: WebView?, url: String?) {
-      Log.d(TAG, "onPageFinished")
+      Logger.d(TAG) { "onPageFinished" }
     }
   }
 
   private fun createDeviceLoadHandler() = object : MessageHandler<Map<String, String>, Any> {
     override fun handle(parameter: Map<String, String>): Any {
-      Log.d(TAG, "DeviceLoadJavascriptSuccess, $parameter")
+      Logger.d(TAG) { "DeviceLoadJavascriptSuccess, $parameter" }
       return mapOf("result" to "Android")
     }
   }
@@ -151,7 +158,7 @@ class MainActivity :
       Person("Wukong", 23),
       object : Callback<Any> {
         override fun onResult(result: Any) {
-          Log.d(TAG, "$handlerName, $result")
+          Logger.d(TAG) { "$handlerName, $result" }
         }
       },
     )
