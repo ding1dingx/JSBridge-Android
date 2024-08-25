@@ -38,8 +38,11 @@ class WebViewJavascriptBridge private constructor(
 
   private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
+  private var userWebViewClient: WebViewClient? = null
+
   init {
     setupBridge()
+    setupWebViewClient()
   }
 
   @SuppressLint("SetJavaScriptEnabled")
@@ -50,14 +53,14 @@ class WebViewJavascriptBridge private constructor(
     Logger.d { "Bridge setup completed" }
   }
 
-  fun setWebViewClient(client: WebViewClient?) {
+  private fun setupWebViewClient() {
     webView.webViewClient = object : WebViewClient() {
       override fun onPageFinished(view: WebView?, url: String?) {
         super.onPageFinished(view, url)
         isWebViewReady.set(true)
         Logger.d { "WebView page finished loading" }
         injectJavascriptIfNeeded()
-        client?.onPageFinished(view, url)
+        userWebViewClient?.onPageFinished(view, url)
       }
 
       @Deprecated(
@@ -68,10 +71,15 @@ class WebViewJavascriptBridge private constructor(
         ),
       )
       override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean =
-        client?.shouldOverrideUrlLoading(view, url) ?: super.shouldOverrideUrlLoading(view, url)
+        userWebViewClient?.shouldOverrideUrlLoading(view, url)
+          ?: super.shouldOverrideUrlLoading(view, url)
 
       // Add other WebViewClient methods as needed, delegating to the client if it's not null
     }
+  }
+
+  fun setUserWebViewClient(client: WebViewClient?) {
+    this.userWebViewClient = client
   }
 
   @MainThread
@@ -230,10 +238,10 @@ class WebViewJavascriptBridge private constructor(
       context: Context,
       webView: WebView,
       lifecycle: Lifecycle? = null,
-      webViewClient: WebViewClient? = null,
+      userWebViewClient: WebViewClient? = null,
     ): WebViewJavascriptBridge = WebViewJavascriptBridge(context, webView).apply {
       lifecycle?.addObserver(this)
-      setWebViewClient(webViewClient)
+      setUserWebViewClient(userWebViewClient)
       Logger.d { "Bridge created and lifecycle observer added" }
     }
 

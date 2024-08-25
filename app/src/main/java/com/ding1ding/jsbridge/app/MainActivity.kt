@@ -87,7 +87,7 @@ class MainActivity :
         allowUniversalAccessFromFileURLs = true
       }
 
-      webViewClient = createWebViewClient()
+      webViewClient = mWebViewClient
     }
 
     webViewContainer.addView(webView)
@@ -102,7 +102,7 @@ class MainActivity :
       context = this,
       webView = webView,
       lifecycle = lifecycle,
-      webViewClient = createWebViewClient(),
+      userWebViewClient = mWebViewClient,
     ).apply {
       consolePipe = object : ConsolePipe {
         override fun post(message: String) {
@@ -121,7 +121,7 @@ class MainActivity :
     }
   }
 
-  private fun createWebViewClient() = object : WebViewClient() {
+  private val mWebViewClient = object : WebViewClient() {
     override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
       super.onPageStarted(view, url, favicon)
       Logger.d(TAG) { "onPageStarted" }
