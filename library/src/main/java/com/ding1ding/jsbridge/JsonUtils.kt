@@ -1,3 +1,5 @@
+@file:Suppress("ktlint:standard:max-line-length")
+
 package com.ding1ding.jsbridge
 
 import java.math.BigInteger
@@ -16,7 +18,7 @@ object JsonUtils {
   fun toJson(any: Any?): String = when (any) {
     null -> "null"
     is JSONObject, is JSONArray -> any.toString()
-    is String -> JSONObject.quote(any)
+    is String -> JSONObject.quote(any) // Use JSONObject.quote to handle special characters correctly
     is Boolean, is Number -> any.toString()
     is Date -> JSONObject.quote(isoDateFormat.format(any))
     is Map<*, *> -> mapToJson(any)
@@ -74,7 +76,7 @@ object JsonUtils {
       json.startsWith("[") && json.endsWith("]") -> parseJsonArray(json)
       json.startsWith("\"") && json.endsWith("\"") -> {
         val unquoted = json.substring(1, json.length - 1)
-        tryParseDate(unquoted) ?: unquoted
+        tryParseDate(unquoted) ?: unescapeString(unquoted)
       }
 
       json == "true" -> true
@@ -148,5 +150,36 @@ object JsonUtils {
     isoDateFormat.parse(value)
   } catch (e: Exception) {
     null
+  }
+
+  private fun unescapeString(s: String): String {
+    val sb = StringBuilder(s.length)
+    var i = 0
+    while (i < s.length) {
+      var ch = s[i]
+      if (ch == '\\' && i + 1 < s.length) {
+        ch = s[++i]
+        when (ch) {
+          'b' -> sb.append('\b')
+          'f' -> sb.append('\u000C')
+          'n' -> sb.append('\n')
+          'r' -> sb.append('\r')
+          't' -> sb.append('\t')
+          'u' -> {
+            if (i + 4 < s.length) {
+              val hex = s.substring(i + 1, i + 5)
+              sb.append(hex.toInt(16).toChar())
+              i += 4
+            }
+          }
+
+          else -> sb.append(ch)
+        }
+      } else {
+        sb.append(ch)
+      }
+      i++
+    }
+    return sb.toString()
   }
 }
