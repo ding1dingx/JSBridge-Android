@@ -31,6 +31,11 @@ class WebViewJavascriptBridge(private val context: Context, private val webView:
     webView.addJavascriptInterface(this, "consolePipe")
   }
 
+  fun removeJavascriptInterface() {
+    webView.removeJavascriptInterface("normalPipe")
+    webView.removeJavascriptInterface("consolePipe")
+  }
+
   @JavascriptInterface
   fun postMessage(data: String?) {
     data?.let { processMessage(it) }
