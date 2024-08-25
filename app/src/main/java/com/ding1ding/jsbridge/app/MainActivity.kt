@@ -86,6 +86,7 @@ class MainActivity :
         javaScriptEnabled = true
         allowUniversalAccessFromFileURLs = true
       }
+
       webViewClient = createWebViewClient()
     }
 
@@ -117,10 +118,13 @@ class MainActivity :
 
   private fun createWebViewClient() = object : WebViewClient() {
     override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
+      super.onPageStarted(view, url, favicon)
       Logger.d(TAG) { "onPageStarted" }
     }
 
     override fun onPageFinished(view: WebView?, url: String?) {
+      super.onPageFinished(view, url)
+      bridge.injectJavascriptIfNeeded()
       Logger.d(TAG) { "onPageFinished" }
     }
   }

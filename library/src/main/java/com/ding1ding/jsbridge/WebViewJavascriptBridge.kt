@@ -32,7 +32,6 @@ class WebViewJavascriptBridge private constructor(
 
   init {
     setupBridge()
-    setupWebViewClient()
   }
 
   @SuppressLint("SetJavaScriptEnabled")
@@ -43,19 +42,33 @@ class WebViewJavascriptBridge private constructor(
     Logger.d { "Bridge setup completed" }
   }
 
-  private fun setupWebViewClient() {
+  fun setWebViewClient(client: WebViewClient?) {
     webView.webViewClient = object : WebViewClient() {
       override fun onPageFinished(view: WebView?, url: String?) {
         super.onPageFinished(view, url)
         isWebViewReady.set(true)
         Logger.d { "WebView page finished loading" }
         injectJavascriptIfNeeded()
+        client?.onPageFinished(view, url)
       }
+
+      @Deprecated(
+        "Deprecated in Java",
+        ReplaceWith(
+          "client?.shouldOverrideUrlLoading(view, url) ?: super.shouldOverrideUrlLoading(view, url)",
+          "android.webkit.WebViewClient",
+        ),
+      )
+      override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean =
+        client?.shouldOverrideUrlLoading(view, url)
+          ?: super.shouldOverrideUrlLoading(view, url)
+
+      // Add other WebViewClient methods as needed, delegating to the client if it's not null
     }
   }
 
   @MainThread
-  private fun injectJavascriptIfNeeded() {
+  fun injectJavascriptIfNeeded() {
     if (isInjected.get() || !isWebViewReady.get()) {
       Logger.d {
         "JavaScript injection skipped. Injected: ${isInjected.get()}, WebView ready: ${isWebViewReady.get()}"
@@ -179,7 +192,6 @@ class WebViewJavascriptBridge private constructor(
   fun reinitialize() {
     release()
     setupBridge()
-    setupWebViewClient()
     Logger.d { "Bridge reinitialized" }
   }
 
@@ -214,8 +226,10 @@ class WebViewJavascriptBridge private constructor(
       context: Context,
       webView: WebView,
       lifecycle: Lifecycle? = null,
+      webViewClient: WebViewClient? = null,
     ): WebViewJavascriptBridge = WebViewJavascriptBridge(context, webView).also { bridge ->
       lifecycle?.addObserver(bridge)
+      bridge.setWebViewClient(webViewClient)
       Logger.d { "Bridge created and lifecycle observer added" }
     }
 
