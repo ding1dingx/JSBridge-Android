@@ -31,9 +31,11 @@ class MainActivity :
   @SuppressLint("SetJavaScriptEnabled")
   private fun setupWebView() {
     webView = findViewById<WebView>(R.id.webView).apply {
-      // WebView.setWebContentsDebuggingEnabled(true)
-      settings.javaScriptEnabled = true
-      settings.allowUniversalAccessFromFileURLs = true
+      WebView.setWebContentsDebuggingEnabled(true)
+      settings.apply {
+        javaScriptEnabled = true
+        allowUniversalAccessFromFileURLs = true
+      }
       webViewClient = createWebViewClient()
       loadUrl("file:///android_asset/index.html")
     }
