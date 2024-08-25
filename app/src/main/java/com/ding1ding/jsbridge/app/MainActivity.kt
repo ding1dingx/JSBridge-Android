@@ -17,13 +17,12 @@ class MainActivity :
   AppCompatActivity(),
   View.OnClickListener {
 
-  private lateinit var webView: WebView
-  private lateinit var bridge: WebViewJavascriptBridge
+  private var webView: WebView? = null
+  private var bridge: WebViewJavascriptBridge? = null
 
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
     setContentView(R.layout.activity_main)
-
     setupWebView()
     setupBridge()
     setupClickListeners()
@@ -41,15 +40,17 @@ class MainActivity :
   }
 
   private fun setupBridge() {
-    bridge = WebViewJavascriptBridge(this, webView).apply {
-      consolePipe = object : ConsolePipe {
-        override fun post(message: String) {
-          Log.d("[console.log]", message)
+    bridge = webView?.let {
+      WebViewJavascriptBridge(this, it).apply {
+        consolePipe = object : ConsolePipe {
+          override fun post(message: String) {
+            Log.d("[console.log]", message)
+          }
         }
-      }
 
-      registerHandler("DeviceLoadJavascriptSuccess", createDeviceLoadHandler())
-      registerHandler("ObjTest", createObjTestHandler())
+        registerHandler("DeviceLoadJavascriptSuccess", createDeviceLoadHandler())
+        registerHandler("ObjTest", createObjTestHandler())
+      }
     }
   }
 
@@ -62,7 +63,7 @@ class MainActivity :
   private fun createWebViewClient() = object : WebViewClient() {
     override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
       Log.d(TAG, "onPageStarted")
-      bridge.injectJavascript()
+      bridge?.injectJavascript()
     }
 
     override fun onPageFinished(view: WebView?, url: String?) {
@@ -89,7 +90,7 @@ class MainActivity :
     when (v?.id) {
       R.id.buttonSync -> callJsHandler("GetToken")
       R.id.buttonAsync -> callJsHandler("AsyncCall")
-      R.id.objTest -> bridge.callHandler(
+      R.id.objTest -> bridge?.callHandler(
         "TestJavascriptCallNative",
         mapOf("message" to "Hello from Android"),
         null,
@@ -98,7 +99,7 @@ class MainActivity :
   }
 
   private fun callJsHandler(handlerName: String) {
-    bridge.callHandler(
+    bridge?.callHandler(
       handlerName,
       Person("Wukong", 23),
       object : Callback<Any> {
