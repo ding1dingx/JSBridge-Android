@@ -22,7 +22,7 @@ dependencyResolutionManagement {
   }
 }
 
-rootProject.name = "JsBridge-Kotlin"
+rootProject.name = "JsBridge-Android"
 
 include(":app")
 include(":library")
