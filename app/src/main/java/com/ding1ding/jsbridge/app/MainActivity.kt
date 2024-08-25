@@ -106,7 +106,7 @@ class MainActivity :
     ).apply {
       consolePipe = object : ConsolePipe {
         override fun post(message: String) {
-          Logger.d("[console.log]") { message }
+          Logger.i("[console.log]") { message }
         }
       }
 
