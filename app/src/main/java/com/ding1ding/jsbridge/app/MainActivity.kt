@@ -3,9 +3,11 @@ package com.ding1ding.jsbridge.app
 import android.annotation.SuppressLint
 import android.os.Bundle
 import android.util.Log
+import android.view.KeyEvent
 import android.view.View
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.widget.LinearLayout
 import androidx.appcompat.app.AppCompatActivity
 import com.ding1ding.jsbridge.Callback
 import com.ding1ding.jsbridge.ConsolePipe
@@ -17,8 +19,10 @@ class MainActivity :
   AppCompatActivity(),
   View.OnClickListener {
 
-  private var webView: WebView? = null
-  private var bridge: WebViewJavascriptBridge? = null
+  private lateinit var webView: WebView
+  private lateinit var bridge: WebViewJavascriptBridge
+
+  private val webViewContainer: LinearLayout by lazy { findViewById(R.id.linearLayout) }
 
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
@@ -28,10 +32,53 @@ class MainActivity :
     setupClickListeners()
   }
 
+  override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
+    if (keyCode == KeyEvent.KEYCODE_BACK && event?.repeatCount == 0) {
+      when {
+        webView.canGoBack() -> webView.goBack()
+        else -> supportFinishAfterTransition()
+      }
+      return true
+    }
+    return super.onKeyDown(keyCode, event)
+  }
+
+  override fun onResume() {
+    super.onResume()
+    webView.onResume()
+    webView.resumeTimers()
+  }
+
+  override fun onPause() {
+    webView.onPause()
+    webView.pauseTimers()
+    super.onPause()
+  }
+
+  override fun onDestroy() {
+    // 01
+    bridge.release()
+    // 02
+    releaseWebView()
+    Log.d(TAG, "onDestroy")
+    super.onDestroy()
+  }
+
   @SuppressLint("SetJavaScriptEnabled")
   private fun setupWebView() {
-    webView = findViewById<WebView>(R.id.webView).apply {
+    webView = WebView(this).apply {
+      removeJavascriptInterface("searchBoxJavaBridge_")
+      removeJavascriptInterface("accessibility")
+      removeJavascriptInterface("accessibilityTraversal")
+
       WebView.setWebContentsDebuggingEnabled(true)
+
+      layoutParams = LinearLayout.LayoutParams(
+        LinearLayout.LayoutParams.MATCH_PARENT,
+        0,
+        1f,
+      )
+
       settings.apply {
         javaScriptEnabled = true
         allowUniversalAccessFromFileURLs = true
@@ -39,20 +86,20 @@ class MainActivity :
       webViewClient = createWebViewClient()
       loadUrl("file:///android_asset/index.html")
     }
+
+    webViewContainer.addView(webView)
   }
 
   private fun setupBridge() {
-    bridge = webView?.let {
-      WebViewJavascriptBridge(this, it).apply {
-        consolePipe = object : ConsolePipe {
-          override fun post(message: String) {
-            Log.d("[console.log]", message)
-          }
+    bridge = WebViewJavascriptBridge(this, webView).apply {
+      consolePipe = object : ConsolePipe {
+        override fun post(message: String) {
+          Log.d("[console.log]", message)
         }
-
-        registerHandler("DeviceLoadJavascriptSuccess", createDeviceLoadHandler())
-        registerHandler("ObjTest", createObjTestHandler())
       }
+
+      registerHandler("DeviceLoadJavascriptSuccess", createDeviceLoadHandler())
+      registerHandler("ObjTest", createObjTestHandler())
     }
   }
 
@@ -65,7 +112,7 @@ class MainActivity :
   private fun createWebViewClient() = object : WebViewClient() {
     override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
       Log.d(TAG, "onPageStarted")
-      bridge?.injectJavascript()
+      bridge.injectJavascript()
     }
 
     override fun onPageFinished(view: WebView?, url: String?) {
@@ -92,7 +139,7 @@ class MainActivity :
     when (v?.id) {
       R.id.buttonSync -> callJsHandler("GetToken")
       R.id.buttonAsync -> callJsHandler("AsyncCall")
-      R.id.objTest -> bridge?.callHandler(
+      R.id.objTest -> bridge.callHandler(
         "TestJavascriptCallNative",
         mapOf("message" to "Hello from Android"),
         null,
@@ -101,7 +148,7 @@ class MainActivity :
   }
 
   private fun callJsHandler(handlerName: String) {
-    bridge?.callHandler(
+    bridge.callHandler(
       handlerName,
       Person("Wukong", 23),
       object : Callback<Any> {
@@ -110,6 +157,20 @@ class MainActivity :
         }
       },
     )
+  }
+
+  private fun releaseWebView() {
+    webViewContainer.removeView(webView)
+    webView.apply {
+      stopLoading()
+      loadUrl("about:blank")
+      clearHistory()
+      removeAllViews()
+      webChromeClient = null
+      // webViewClient = null
+      settings.javaScriptEnabled = false
+      destroy()
+    }
   }
 
   companion object {
