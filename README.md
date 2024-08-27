@@ -1,4 +1,4 @@
-# JsBridge-Android
+# JSBridge-Android
 
 Tiny JavaScript Bridge for Android.
 
