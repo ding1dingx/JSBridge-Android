@@ -29,7 +29,7 @@ class MainActivity :
     setContentView(R.layout.activity_main)
 
     if (BuildConfig.DEBUG) {
-      WebViewJavascriptBridge.setLogLevel(Logger.LogLevel.DEBUG)
+      WebViewJavascriptBridge.setLogLevel(Logger.LogLevel.VERBOSE)
     } else {
       WebViewJavascriptBridge.setLogLevel(Logger.LogLevel.ERROR)
     }
@@ -106,7 +106,7 @@ class MainActivity :
     ).apply {
       consolePipe = object : ConsolePipe {
         override fun post(message: String) {
-          Logger.i("[console.log]") { message }
+          Logger.v("[console.log]") { message }
         }
       }
 

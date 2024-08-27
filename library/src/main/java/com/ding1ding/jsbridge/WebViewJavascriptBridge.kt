@@ -247,7 +247,7 @@ class WebViewJavascriptBridge private constructor(
 
     @JvmStatic
     fun setLogLevel(level: Logger.LogLevel) {
-      Logger.logLevel = level
+      Logger.logLevel.set(level.value)
     }
   }
 }
